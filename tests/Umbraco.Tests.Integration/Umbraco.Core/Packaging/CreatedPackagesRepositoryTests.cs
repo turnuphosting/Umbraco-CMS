@@ -15,6 +15,7 @@ using Umbraco.Cms.Core.IO;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Packaging;
 using Umbraco.Cms.Core.Services;
+using Umbraco.Cms.Tests.Common.Attributes;
 using Umbraco.Cms.Tests.Common.Builders;
 using Umbraco.Cms.Tests.Common.Testing;
 using Umbraco.Cms.Tests.Integration.Testing;
@@ -44,7 +45,7 @@ public class CreatedPackagesRepositoryTests : UmbracoIntegrationTest
 
     private IFileService FileService => GetRequiredService<IFileService>();
 
-    private IMacroService MacroService => GetRequiredService<IMacroService>();
+    private IDictionaryItemService DictionaryItemService => GetRequiredService<IDictionaryItemService>();
 
     private ILocalizationService LocalizationService => GetRequiredService<ILocalizationService>();
 
@@ -65,7 +66,6 @@ public class CreatedPackagesRepositoryTests : UmbracoIntegrationTest
         ContentTypeService,
         DataTypeService,
         FileService,
-        MacroService,
         LocalizationService,
         HostingEnvironment,
         EntityXmlSerializer,
@@ -155,7 +155,6 @@ public class CreatedPackagesRepositoryTests : UmbracoIntegrationTest
             Assert.AreEqual(0, def.DataTypes.Count());
             Assert.AreEqual(0, def.DictionaryItems.Count());
             Assert.AreEqual(0, def.DocumentTypes.Count());
-            Assert.AreEqual(0, def.Macros.Count());
             Assert.AreEqual(0, def.MediaTypes.Count());
             Assert.AreEqual(0, def.MediaUdis.Count());
             Assert.AreEqual(0, def.PartialViews.Count());
@@ -165,18 +164,13 @@ public class CreatedPackagesRepositoryTests : UmbracoIntegrationTest
     }
 
     [Test]
-    public void GivenNestedDictionaryItems_WhenPackageExported_ThenTheXmlIsNested()
+    public async Task GivenNestedDictionaryItems_WhenPackageExported_ThenTheXmlIsNested()
     {
-        var parent = new DictionaryItem("Parent") { Key = Guid.NewGuid() };
-        LocalizationService.Save(parent);
-        var child1 = new DictionaryItem(parent.Key, "Child1") { Key = Guid.NewGuid() };
-        LocalizationService.Save(child1);
-        var child2 = new DictionaryItem(child1.Key, "Child2") { Key = Guid.NewGuid() };
-        LocalizationService.Save(child2);
-        var child3 = new DictionaryItem(child2.Key, "Child3") { Key = Guid.NewGuid() };
-        LocalizationService.Save(child3);
-        var child4 = new DictionaryItem(child3.Key, "Child4") { Key = Guid.NewGuid() };
-        LocalizationService.Save(child4);
+        var parent = (await DictionaryItemService.CreateAsync(new DictionaryItem("Parent"), Constants.Security.SuperUserKey)).Result;
+        var child1 = (await DictionaryItemService.CreateAsync(new DictionaryItem(parent.Key, "Child1"), Constants.Security.SuperUserKey)).Result;
+        var child2 = (await DictionaryItemService.CreateAsync(new DictionaryItem(child1.Key, "Child2"), Constants.Security.SuperUserKey)).Result;
+        var child3 = (await DictionaryItemService.CreateAsync(new DictionaryItem(child2.Key, "Child3"), Constants.Security.SuperUserKey)).Result;
+        var child4 = (await DictionaryItemService.CreateAsync(new DictionaryItem(child3.Key, "Child4"), Constants.Security.SuperUserKey)).Result;
 
         var def = new PackageDefinition
         {
@@ -216,6 +210,7 @@ public class CreatedPackagesRepositoryTests : UmbracoIntegrationTest
     }
 
     [Test]
+    [LongRunning]
     public void Export_Zip()
     {
         var mt = MediaTypeBuilder.CreateImageMediaType("testImage");

@@ -43,7 +43,7 @@ public class ComponentTests
 
     private static IServiceProvider MockFactory(Action<Mock<IServiceProvider>> setup = null)
     {
-        // FIXME: use IUmbracoDatabaseFactory vs UmbracoDatabaseFactory, clean it all up!
+        // TODO: use IUmbracoDatabaseFactory vs UmbracoDatabaseFactory, clean it all up!
         var mock = new Mock<IServiceProvider>();
         ILoggerFactory loggerFactory = NullLoggerFactory.Instance;
         var logger = loggerFactory.CreateLogger("GenericLogger");
@@ -80,7 +80,9 @@ public class ComponentTests
             Options.Create(new ContentSettings()));
         var eventAggregator = Mock.Of<IEventAggregator>();
         var scopeProvider = new ScopeProvider(
-            new AmbientScopeStack(), new AmbientScopeContextStack(),Mock.Of<IDistributedLockingMechanismFactory>(),
+            new AmbientScopeStack(),
+            new AmbientScopeContextStack(),
+            Mock.Of<IDistributedLockingMechanismFactory>(),
             f,
             fs,
             new TestOptionsMonitor<CoreDebugSettings>(coreDebug),
@@ -113,7 +115,7 @@ public class ComponentTests
         Mock.Of<IProfiler>());
 
     [Test]
-    public void Boot1A()
+    public async Task Boot1A()
     {
         var register = MockRegister();
         var composition = new UmbracoBuilder(register, Mock.Of<IConfiguration>(), TestHelper.GetMockedTypeLoader());
@@ -158,6 +160,15 @@ public class ComponentTests
                     return Mock.Of<ILogger<ComponentCollection>>();
                 }
 
+                if (type == typeof(ILogger<ComponentCollection>))
+                {
+                    return Mock.Of<ILogger<ComponentCollection>>();
+                }
+
+                if (type == typeof(IServiceProviderIsService))
+                {
+                    return Mock.Of<IServiceProviderIsService>();
+                }
                 throw new NotSupportedException(type.FullName);
             });
         });
@@ -167,9 +178,9 @@ public class ComponentTests
         var components = builder.CreateCollection(factory);
 
         Assert.IsEmpty(components);
-        components.Initialize();
+        await components.InitializeAsync(false, default);
         Assert.IsEmpty(Initialized);
-        components.Terminate();
+        await components.TerminateAsync(false, default);
         Assert.IsEmpty(Terminated);
     }
 
@@ -268,7 +279,7 @@ public class ComponentTests
     }
 
     [Test]
-    public void Initialize()
+    public async Task Initialize()
     {
         Composed.Clear();
         Initialized.Clear();
@@ -316,6 +327,11 @@ public class ComponentTests
                     return Mock.Of<ILogger<ComponentCollection>>();
                 }
 
+                if (type == typeof(IServiceProviderIsService))
+                {
+                    return Mock.Of<IServiceProviderIsService>();
+                }
+
                 throw new NotSupportedException(type.FullName);
             });
         });
@@ -333,11 +349,11 @@ public class ComponentTests
         var components = builder.CreateCollection(factory);
 
         Assert.IsEmpty(Initialized);
-        components.Initialize();
+        await components.InitializeAsync(false, default);
         AssertTypeArray(TypeArray<Component5, Component5a>(), Initialized);
 
         Assert.IsEmpty(Terminated);
-        components.Terminate();
+        await components.TerminateAsync(false, default);
         AssertTypeArray(TypeArray<Component5a, Component5>(), Terminated);
     }
 
@@ -649,7 +665,7 @@ public class ComponentTests
     {
     }
 
-    // FIXME: move to Testing
+    // TODO: move to Testing
     private static Type[] TypeArray<T1>() => new[] { typeof(T1) };
 
     private static Type[] TypeArray<T1, T2>() => new[] { typeof(T1), typeof(T2) };

@@ -27,6 +27,8 @@ namespace Umbraco.Cms.Infrastructure.PublishedCache;
 /// </remarks>
 public class ContentStore
 {
+    private static readonly TimeSpan _monitorTimeout = TimeSpan.FromSeconds(30);
+
     // TODO: collection trigger (ok for now)
     // see SnapDictionary notes
     private const long CollectMinGenDelta = 8;
@@ -330,7 +332,12 @@ public class ContentStore
             throw new InvalidOperationException("Recursive locks not allowed");
         }
 
-        Monitor.Enter(_wlocko, ref lockInfo.Taken);
+        Monitor.TryEnter(_wlocko, _monitorTimeout, ref lockInfo.Taken);
+
+        if (Monitor.IsEntered(_wlocko) is false)
+        {
+            throw new TimeoutException("Could not enter monitor before timeout in content store");
+        }
 
         lock (_rlocko)
         {
@@ -488,11 +495,7 @@ public class ContentStore
 
     private void RegisterChange(int id, ContentNodeKit kit)
     {
-        if (_wchanges == null)
-        {
-            _wchanges = new List<KeyValuePair<int, ContentNodeKit>>();
-        }
-
+        _wchanges ??= new List<KeyValuePair<int, ContentNodeKit>>();
         _wchanges.Add(new KeyValuePair<int, ContentNodeKit>(id, kit));
     }
 
@@ -623,7 +626,7 @@ public class ContentStore
         IReadOnlyCollection<IPublishedContentType> refreshedTypesA =
             refreshedTypes ?? Array.Empty<IPublishedContentType>();
         var refreshedIdsA = refreshedTypesA.Select(x => x.Id).ToList();
-        kits = kits ?? Array.Empty<ContentNodeKit>();
+        kits ??= Array.Empty<ContentNodeKit>();
 
         if (kits.Count == 0 && refreshedIdsA.Count == 0 && removedIdsA.Count == 0)
         {
@@ -736,16 +739,22 @@ public class ContentStore
     {
         EnsureLocked();
 
-        IPublishedContentType?[] contentTypes = _contentTypesById
+        IPublishedContentType[] contentTypes = _contentTypesById
             .Where(kvp =>
                 kvp.Value.Value != null &&
                 kvp.Value.Value.PropertyTypes.Any(p => dataTypeIds.Contains(p.DataType.Id)))
             .Select(kvp => kvp.Value.Value)
             .Select(x => getContentType(x!.Id))
-            .Where(x => x != null) // poof, gone, very unlikely and probably an anomaly
+            .WhereNotNull() // poof, gone, very unlikely and probably an anomaly
             .ToArray();
 
-        var contentTypeIdsA = contentTypes.Select(x => x!.Id).ToArray();
+        // all content types that are affected by this data type update must be updated
+        foreach (IPublishedContentType contentType in contentTypes)
+        {
+            SetContentTypeLocked(contentType);
+        }
+
+        var contentTypeIdsA = contentTypes.Select(x => x.Id).ToArray();
         var contentTypeNodes = new Dictionary<int, List<int>>();
         foreach (var id in contentTypeIdsA)
         {
@@ -761,7 +770,7 @@ public class ContentStore
             }
         }
 
-        foreach (IPublishedContentType contentType in contentTypes.WhereNotNull())
+        foreach (IPublishedContentType contentType in contentTypes)
         {
             // again, weird situation
             if (contentTypeNodes.ContainsKey(contentType.Id) == false)
@@ -1506,18 +1515,15 @@ public class ContentStore
     /// </summary>
     private void AddTreeNodeLocked(ContentNode content, LinkedNode<ContentNode>? parentLink = null)
     {
-        parentLink = parentLink ?? GetRequiredParentLink(content, null);
+        parentLink ??= GetRequiredParentLink(content, null);
 
-        ContentNode? parent = parentLink.Value;
-
-        // We are doing a null check here but this should no longer be possible because we have a null check in BuildKit
-        // for the parent.Value property and we'll output a warning. However I'll leave this additional null check in place.
-        // see https://github.com/umbraco/Umbraco-CMS/issues/7868
-        if (parent == null)
-        {
-            throw new PanicException(
-                $"A null Value was returned on the {nameof(parentLink)} LinkedNode with id={content.ParentContentId}, potentially your database paths are corrupted.");
-        }
+        ContentNode? parent = parentLink.Value
+            // We are doing a null check here but this should no longer be possible because we have a null check in BuildKit
+            // for the parent.Value property and we'll output a warning. However I'll leave this additional null check in place.
+            // see https://github.com/umbraco/Umbraco-CMS/issues/7868
+            ?? throw new PanicException(
+                $"A null Value was returned on the {nameof(parentLink)} LinkedNode with " +
+                $"id={content.ParentContentId}, potentially your database paths are corrupted.");
 
         // if parent has no children, clone parent + add as first child
         if (parent.FirstChildContentId < 0)
@@ -2058,7 +2064,7 @@ public class ContentStore
         }
     }
 
-    internal TestHelper Test => _unitTesting ?? (_unitTesting = new TestHelper(this));
+    internal TestHelper Test => _unitTesting ??= new TestHelper(this);
 
     #endregion
 }

@@ -18,14 +18,16 @@
 
     <title>Umbraco: No Published Content</title>
 
-    <link rel="stylesheet" href="@WebPath.Combine(backOfficePath.TrimStart("~"), "/assets/css/nonodes.style.min.css")" />
+    <link rel="stylesheet" href="@WebPath.Combine(backOfficePath.TrimStartExact("~") , "website", "/nonodes.css")" />
 </head>
 <body>
 
     <section>
         <article>
             <div>
-                <div class="logo"></div>
+                <div class="logo" aria-hidden="true">
+                    <img alt="Umbraco" src="umbraco/backoffice/assets/umbraco_logomark_white.svg" width="91" height="91" />
+                </div>
 
                 <h1>Welcome to your Umbraco installation</h1>
                 <h3>You're seeing this wonderful page because your website doesn't contain any published content yet.</h3>

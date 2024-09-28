@@ -19,14 +19,23 @@ public class Issuu : OEmbedProviderBase
 
     public override Dictionary<string, string> RequestParams => new()
     {
+        // ApiUrl/?iframe=true
+        { "iframe", "true" },
+
         // ApiUrl/?format=xml
         { "format", "xml" },
     };
 
-    public override string GetMarkup(string url, int maxWidth = 0, int maxHeight = 0)
+    [Obsolete("Use GetMarkupAsync instead. This will be removed in Umbraco 15.")]
+    public override string? GetMarkup(string url, int maxWidth = 0, int maxHeight = 0)
+    {
+        return GeOEmbedDataAsync(url, maxWidth, maxHeight, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    public override async Task<string?> GeOEmbedDataAsync(string url, int? maxWidth, int? maxHeight, CancellationToken cancellationToken)
     {
         var requestUrl = base.GetEmbedProviderUrl(url, maxWidth, maxHeight);
-        XmlDocument xmlDocument = base.GetXmlResponse(requestUrl);
+        XmlDocument xmlDocument = await base.GetXmlResponseAsync(requestUrl, cancellationToken);
 
         return GetXmlProperty(xmlDocument, "/oembed/html");
     }

@@ -1,15 +1,12 @@
-using System.Collections.Generic;
-using System.Linq;
 using Bogus;
 using Examine;
 using Lucene.Net.Util;
-using Newtonsoft.Json;
 using NUnit.Framework;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Infrastructure.Examine;
+using Umbraco.Cms.Tests.Common.Attributes;
 using Umbraco.Cms.Tests.Common.Builders;
 using Umbraco.Cms.Tests.Common.Testing;
-using Umbraco.Extensions;
 using Constants = Umbraco.Cms.Core.Constants;
 
 namespace Umbraco.Cms.Tests.Integration.Umbraco.Examine.Lucene.UmbracoExamine;
@@ -22,6 +19,7 @@ namespace Umbraco.Cms.Tests.Integration.Umbraco.Examine.Lucene.UmbracoExamine;
 public class IndexTest : ExamineBaseTest
 {
     [Test]
+    [LongRunning]
     public void GivenValidationParentNode_WhenContentIndexedUnderDifferentParent_DocumentIsNotIndexed()
     {
         using (GetSynchronousContentIndex(false, out var index, out _, out _, 999))
@@ -51,6 +49,7 @@ public class IndexTest : ExamineBaseTest
     }
 
     [Test]
+    [LongRunning]
     public void GivenIndexingDocument_WhenRichTextPropertyData_CanStoreImmenseFields()
     {
         using (GetSynchronousContentIndex(false, out var index, out _, out var contentValueSetBuilder))
@@ -62,7 +61,7 @@ public class IndexTest : ExamineBaseTest
             {
                 Alias = "rte",
                 Name = "RichText",
-                PropertyEditorAlias = Constants.PropertyEditors.Aliases.TinyMce
+                PropertyEditorAlias = Constants.PropertyEditors.Aliases.RichText
             });
 
             var content = ContentBuilder.CreateBasicContent(contentType);
@@ -88,91 +87,7 @@ public class IndexTest : ExamineBaseTest
     }
 
     [Test]
-    public void GivenIndexingDocument_WhenGridPropertyData_ThenDataIndexedInSegregatedFields()
-    {
-        using (GetSynchronousContentIndex(false, out var index, out _, out var contentValueSetBuilder))
-        {
-            index.CreateIndex();
-
-            var contentType = ContentTypeBuilder.CreateBasicContentType();
-            contentType.AddPropertyType(new PropertyType(TestHelper.ShortStringHelper, "test", ValueStorageType.Ntext)
-            {
-                Alias = "grid",
-                Name = "Grid",
-                PropertyEditorAlias = Constants.PropertyEditors.Aliases.Grid
-            });
-            var content = ContentBuilder.CreateBasicContent(contentType);
-            content.Id = 555;
-            content.Path = "-1,555";
-            var gridVal = new GridValue
-            {
-                Name = "n1",
-                Sections = new List<GridValue.GridSection>
-                {
-                    new()
-                    {
-                        Grid = "g1",
-                        Rows = new List<GridValue.GridRow>
-                        {
-                            new()
-                            {
-                                Id = Guid.NewGuid(),
-                                Name = "row1",
-                                Areas = new List<GridValue.GridArea>
-                                {
-                                    new()
-                                    {
-                                        Grid = "g2",
-                                        Controls = new List<GridValue.GridControl>
-                                        {
-                                            new()
-                                            {
-                                                Editor = new GridValue.GridEditor
-                                                {
-                                                    Alias = "editor1",
-                                                    View = "view1"
-                                                },
-                                                Value = "value1"
-                                            },
-                                            new()
-                                            {
-                                                Editor = new GridValue.GridEditor
-                                                {
-                                                    Alias = "editor1",
-                                                    View = "view1"
-                                                },
-                                                Value = "value2"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            };
-
-            var json = JsonConvert.SerializeObject(gridVal);
-            content.Properties["grid"].SetValue(json);
-
-            var valueSet = contentValueSetBuilder.GetValueSets(content);
-            index.IndexItems(valueSet);
-
-            var results = index.Searcher.CreateQuery().Id(555).Execute();
-            Assert.AreEqual(1, results.TotalItemCount);
-
-            var result = results.First();
-            Assert.IsTrue(result.Values.ContainsKey("grid.row1"));
-            Assert.AreEqual("value1", result.AllValues["grid.row1"][0]);
-            Assert.AreEqual("value2", result.AllValues["grid.row1"][1]);
-            Assert.IsTrue(result.Values.ContainsKey("grid"));
-            Assert.AreEqual("value1 value2 ", result["grid"]);
-            Assert.IsTrue(result.Values.ContainsKey($"{UmbracoExamineFieldNames.RawFieldPrefix}grid"));
-            Assert.AreEqual(json, result[$"{UmbracoExamineFieldNames.RawFieldPrefix}grid"]);
-        }
-    }
-
-    [Test]
+    [LongRunning]
     public void GivenEmptyIndex_WhenUsingWithContentAndMediaPopulators_ThenIndexPopulated()
     {
         var mediaRebuilder = IndexInitializer.GetMediaIndexRebuilder(IndexInitializer.GetMockMediaService());
@@ -193,6 +108,7 @@ public class IndexTest : ExamineBaseTest
     ///     Check that the node signalled as protected in the content service is not present in the index.
     /// </summary>
     [Test]
+    [LongRunning]
     public void GivenPublishedContentIndex_WhenProtectedContentIndexed_ThenItIsIgnored()
     {
         using (GetSynchronousContentIndex(true, out var index, out var contentRebuilder, out _))
@@ -212,6 +128,7 @@ public class IndexTest : ExamineBaseTest
     }
 
     [Test]
+    [LongRunning]
     public void GivenMediaUnderNonIndexableParent_WhenMediaMovedUnderIndexableParent_ThenItIsIncludedInTheIndex()
     {
         // create a validator with
@@ -248,6 +165,7 @@ public class IndexTest : ExamineBaseTest
     }
 
     [Test]
+    [LongRunning]
     public void GivenMediaUnderIndexableParent_WhenMediaMovedUnderNonIndexableParent_ThenItIsRemovedFromTheIndex()
     {
         // create a validator with
@@ -291,6 +209,7 @@ public class IndexTest : ExamineBaseTest
     ///     We then call the Examine method to re-index Content and do some comparisons to ensure that it worked correctly.
     /// </summary>
     [Test]
+    [LongRunning]
     public void GivenEmptyIndex_WhenIndexedWithContentPopulator_ThenTheIndexIsPopulated()
     {
         using (GetSynchronousContentIndex(false, out var index, out var contentRebuilder, out _))
@@ -328,6 +247,7 @@ public class IndexTest : ExamineBaseTest
     ///     This will delete an item from the index and ensure that all children of the node are deleted too!
     /// </summary>
     [Test]
+    [LongRunning]
     public void GivenPopulatedIndex_WhenDocumentDeleted_ThenItsHierarchyIsAlsoDeleted()
     {
         using (GetSynchronousContentIndex(false, out var index, out var contentRebuilder, out _))

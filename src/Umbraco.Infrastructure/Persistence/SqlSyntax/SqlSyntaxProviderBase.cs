@@ -303,7 +303,7 @@ public abstract class SqlSyntaxProviderBase<TSyntax> : ISqlSyntaxProvider
             sb.Append(Format(column) + ",\n");
         }
 
-        return sb.ToString().TrimEnd(",\n");
+        return sb.ToString().TrimEndExact(",\n");
     }
 
     public virtual string Format(ColumnDefinition column) =>
@@ -420,6 +420,9 @@ public abstract class SqlSyntaxProviderBase<TSyntax> : ISqlSyntaxProvider
 
     public virtual string DeleteDefaultConstraint =>
         throw new NotSupportedException("Default constraints are not supported");
+
+    public virtual string Length => "LEN";
+    public virtual string Substring => "SUBSTRING";
 
     public virtual string CreateTable => "CREATE TABLE {0} ({1})";
 

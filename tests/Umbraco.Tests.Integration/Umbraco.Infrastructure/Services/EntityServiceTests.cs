@@ -9,6 +9,7 @@ using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Models.Entities;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Infrastructure.Persistence;
+using Umbraco.Cms.Tests.Common.Attributes;
 using Umbraco.Cms.Tests.Common.Builders;
 using Umbraco.Cms.Tests.Common.Testing;
 using Umbraco.Cms.Tests.Integration.Testing;
@@ -24,23 +25,23 @@ namespace Umbraco.Cms.Tests.Integration.Umbraco.Infrastructure.Services;
 public class EntityServiceTests : UmbracoIntegrationTest
 {
     [SetUp]
-    public void SetupTestData()
+    public async Task SetupTestData()
     {
         if (_langFr == null && _langEs == null)
         {
             _langFr = new Language("fr-FR", "French (France)");
             _langEs = new Language("es-ES", "Spanish (Spain)");
-            LocalizationService.Save(_langFr);
-            LocalizationService.Save(_langEs);
+            await LanguageService.CreateAsync(_langFr, Constants.Security.SuperUserKey);
+            await LanguageService.CreateAsync(_langEs, Constants.Security.SuperUserKey);
         }
 
         CreateTestData();
     }
 
-    private Language _langFr;
-    private Language _langEs;
+    private Language? _langFr;
+    private Language? _langEs;
 
-    private ILocalizationService LocalizationService => GetRequiredService<ILocalizationService>();
+    private ILanguageService LanguageService => GetRequiredService<ILanguageService>();
 
     private IContentTypeService ContentTypeService => GetRequiredService<IContentTypeService>();
 
@@ -190,6 +191,7 @@ public class EntityServiceTests : UmbracoIntegrationTest
     }
 
     [Test]
+    [LongRunning]
     public void EntityService_Can_Get_Paged_Content_Descendants_Including_Recycled()
     {
         var contentType = ContentTypeService.Get("umbTextpage");
@@ -231,6 +233,7 @@ public class EntityServiceTests : UmbracoIntegrationTest
     }
 
     [Test]
+    [LongRunning]
     public void EntityService_Can_Get_Paged_Content_Descendants_Without_Recycled()
     {
         var contentType = ContentTypeService.Get("umbTextpage");
@@ -273,6 +276,7 @@ public class EntityServiceTests : UmbracoIntegrationTest
     }
 
     [Test]
+    [LongRunning]
     public void EntityService_Can_Get_Paged_Trashed_Content_Children()
     {
         var contentType = ContentTypeService.Get("umbTextpage");
@@ -378,6 +382,7 @@ public class EntityServiceTests : UmbracoIntegrationTest
     }
 
     [Test]
+    [LongRunning]
     public void EntityService_Can_Get_Paged_Media_Descendants()
     {
         var folderType = MediaTypeService.Get(1031);
@@ -410,6 +415,7 @@ public class EntityServiceTests : UmbracoIntegrationTest
     }
 
     [Test]
+    [LongRunning]
     public void EntityService_Can_Get_Paged_Media_Descendants_Including_Recycled()
     {
         var folderType = MediaTypeService.Get(1031);
@@ -452,6 +458,7 @@ public class EntityServiceTests : UmbracoIntegrationTest
     }
 
     [Test]
+    [LongRunning]
     public void EntityService_Can_Get_Paged_Media_Descendants_Without_Recycled()
     {
         var folderType = MediaTypeService.Get(1031);
@@ -495,6 +502,7 @@ public class EntityServiceTests : UmbracoIntegrationTest
     }
 
     [Test]
+    [LongRunning]
     public void EntityService_Can_Get_Paged_Trashed_Media_Children()
     {
         var folderType = MediaTypeService.Get(1031);
@@ -539,6 +547,7 @@ public class EntityServiceTests : UmbracoIntegrationTest
     }
 
     [Test]
+    [LongRunning]
     public void EntityService_Can_Get_Paged_Media_Descendants_With_Search()
     {
         var folderType = MediaTypeService.Get(1031);
@@ -681,8 +690,6 @@ public class EntityServiceTests : UmbracoIntegrationTest
 
         for (var i = 0; i < entities.Length; i++)
         {
-            Assert.AreEqual(0, entities[i].AdditionalData.Count);
-
             if (i % 2 == 0)
             {
                 var doc = (IDocumentEntitySlim)entities[i];
@@ -692,10 +699,6 @@ public class EntityServiceTests : UmbracoIntegrationTest
                 Assert.AreEqual("Test " + i + " - FR", vals[0]);
                 Assert.AreEqual(_langEs.IsoCode.ToLowerInvariant(), keys[1].ToLowerInvariant());
                 Assert.AreEqual("Test " + i + " - ES", vals[1]);
-            }
-            else
-            {
-                Assert.AreEqual(0, entities[i].AdditionalData.Count);
             }
         }
     }
@@ -833,9 +836,11 @@ public class EntityServiceTests : UmbracoIntegrationTest
     [Test]
     public void EntityService_Cannot_Get_Id_For_Key_With_Incorrect_Object_Type()
     {
-        var result1 = EntityService.GetId(Guid.Parse("1D3A8E6E-2EA9-4CC1-B229-1AEE19821522"),
+        var result1 = EntityService.GetId(
+            Guid.Parse("1D3A8E6E-2EA9-4CC1-B229-1AEE19821522"),
             UmbracoObjectTypes.DocumentType);
-        var result2 = EntityService.GetId(Guid.Parse("1D3A8E6E-2EA9-4CC1-B229-1AEE19821522"),
+        var result2 = EntityService.GetId(
+            Guid.Parse("1D3A8E6E-2EA9-4CC1-B229-1AEE19821522"),
             UmbracoObjectTypes.MediaType);
 
         Assert.IsTrue(result1.Success);
@@ -865,7 +870,7 @@ public class EntityServiceTests : UmbracoIntegrationTest
         Assert.IsFalse(EntityService.GetId(Guid.NewGuid(), UmbracoObjectTypes.DocumentType).Success);
     }
 
-    private static bool s_isSetup;
+    private static bool _isSetup;
 
     private int _folderId;
     private ContentType _contentType;
@@ -882,11 +887,11 @@ public class EntityServiceTests : UmbracoIntegrationTest
 
     public void CreateTestData()
     {
-        if (s_isSetup == false)
+        if (_isSetup == false)
         {
-            s_isSetup = true;
+            _isSetup = true;
 
-            var template = TemplateBuilder.CreateTextPageTemplate();
+            var template = TemplateBuilder.CreateTextPageTemplate("defaultTemplate");
             FileService.SaveTemplate(template); // else, FK violation on contentType!
 
             // Create and Save ContentType "umbTextpage" -> _contentType.Id
@@ -898,45 +903,45 @@ public class EntityServiceTests : UmbracoIntegrationTest
             // Create and Save Content "Homepage" based on "umbTextpage" -> 1053
             _textpage = ContentBuilder.CreateSimpleContent(_contentType);
             _textpage.Key = new Guid("B58B3AD4-62C2-4E27-B1BE-837BD7C533E0");
-            ContentService.Save(_textpage, 0);
+            ContentService.Save(_textpage, -1);
 
             // Create and Save Content "Text Page 1" based on "umbTextpage" -> 1054
             _subpage = ContentBuilder.CreateSimpleContent(_contentType, "Text Page 1", _textpage.Id);
             var contentSchedule = ContentScheduleCollection.CreateWithEntry(DateTime.Now.AddMinutes(-5), null);
-            ContentService.Save(_subpage, 0, contentSchedule);
+            ContentService.Save(_subpage, -1, contentSchedule);
 
             // Create and Save Content "Text Page 2" based on "umbTextpage" -> 1055
             _subpage2 = ContentBuilder.CreateSimpleContent(_contentType, "Text Page 2", _textpage.Id);
-            ContentService.Save(_subpage2, 0);
+            ContentService.Save(_subpage2, -1);
 
             // Create and Save Content "Text Page Deleted" based on "umbTextpage" -> 1056
             _trashed = ContentBuilder.CreateSimpleContent(_contentType, "Text Page Deleted", -20);
             _trashed.Trashed = true;
-            ContentService.Save(_trashed, 0);
+            ContentService.Save(_trashed, -1);
 
             // Create and Save folder-Media -> 1057
             _folderMediaType = MediaTypeService.Get(1031);
             _folder = MediaBuilder.CreateMediaFolder(_folderMediaType, -1);
-            MediaService.Save(_folder, 0);
+            MediaService.Save(_folder, -1);
             _folderId = _folder.Id;
 
             // Create and Save image-Media -> 1058
             _imageMediaType = MediaTypeService.Get(1032);
             _image = MediaBuilder.CreateMediaImage(_imageMediaType, _folder.Id);
-            MediaService.Save(_image, 0);
+            MediaService.Save(_image, -1);
 
             // Create and Save file-Media -> 1059
             var fileMediaType = MediaTypeService.Get(1033);
             var file = MediaBuilder.CreateMediaFile(fileMediaType, _folder.Id);
-            MediaService.Save(file, 0);
+            MediaService.Save(file, -1);
 
             // Create and save sub folder -> 1060
             _subfolder = MediaBuilder.CreateMediaFolder(_folderMediaType, _folder.Id);
-            MediaService.Save(_subfolder, 0);
+            MediaService.Save(_subfolder, -1);
 
             // Create and save sub folder -> 1061
             _subfolder2 = MediaBuilder.CreateMediaFolder(_folderMediaType, _subfolder.Id);
-            MediaService.Save(_subfolder2, 0);
+            MediaService.Save(_subfolder2, -1);
         }
     }
 }

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Umbraco.Cms.Core;
 using Umbraco.Cms.Persistence.EFCore.Migrations;
 using Umbraco.Extensions;
 
@@ -10,7 +11,7 @@ public class SqlServerMigrationProvider : IMigrationProvider
 
     public SqlServerMigrationProvider(IDbContextFactory<UmbracoDbContext> dbContextFactory) => _dbContextFactory = dbContextFactory;
 
-    public string ProviderName => "Microsoft.Data.SqlClient";
+    public string ProviderName => Constants.ProviderNames.SQLServer;
 
     public async Task MigrateAsync(EFCoreMigration migration)
     {
@@ -28,6 +29,8 @@ public class SqlServerMigrationProvider : IMigrationProvider
         migration switch
         {
             EFCoreMigration.InitialCreate => typeof(Migrations.InitialCreate),
+            EFCoreMigration.AddOpenIddict => typeof(Migrations.AddOpenIddict),
+            EFCoreMigration.UpdateOpenIddictToV5 => typeof(Migrations.UpdateOpenIddictToV5),
             _ => throw new ArgumentOutOfRangeException(nameof(migration), $@"Not expected migration value: {migration}")
         };
 }

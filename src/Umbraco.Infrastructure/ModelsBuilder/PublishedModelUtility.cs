@@ -37,6 +37,7 @@ public static class PublishedModelUtility
         switch (itemType)
         {
             case PublishedItemType.Content:
+            case PublishedItemType.Element:
                 return publishedSnapshot.Content?.GetContentType(alias);
             case PublishedItemType.Media:
                 return publishedSnapshot.Media?.GetContentType(alias);
@@ -51,9 +52,9 @@ public static class PublishedModelUtility
         IPublishedContentType contentType,
         Expression<Func<TModel, TValue>> selector)
 
-    // where TModel : PublishedContentModel // fixme PublishedContentModel _or_ PublishedElementModel
+    // where TModel : PublishedContentModel // TODO: PublishedContentModel _or_ PublishedElementModel
     {
-        // fixme therefore, missing a check on TModel here
+        // TODO therefore, missing a check on TModel here
         if (selector.Body is not MemberExpression expr)
         {
             throw new ArgumentException("Not a property expression.", nameof(selector));

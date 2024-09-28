@@ -5,8 +5,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using NUnit.Framework;
+using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Cache;
 using Umbraco.Cms.Core.Configuration.Models;
+using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Mapping;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Net;
@@ -17,6 +19,7 @@ using Umbraco.Cms.Infrastructure.Scoping;
 using Umbraco.Cms.Tests.Common;
 using Umbraco.Cms.Tests.Common.Builders;
 using Umbraco.Cms.Tests.Common.Builders.Extensions;
+using Umbraco.Cms.Tests.UnitTests.TestHelpers;
 using Umbraco.Cms.Web.Common.Security;
 
 namespace Umbraco.Cms.Tests.UnitTests.Umbraco.Infrastructure.Security;
@@ -33,7 +36,7 @@ public class MemberManagerTests
 
     public MemberManager CreateSut()
     {
-        var scopeProvider = new Mock<IScopeProvider>().Object;
+        var scopeProvider = TestHelper.ScopeProvider;
         _mockMemberService = new Mock<IMemberService>();
 
         var mapDefinitions = new List<IMapDefinition>
@@ -42,6 +45,7 @@ public class MemberManagerTests
                 Mock.Of<ILocalizedTextService>(),
                 Mock.Of<IEntityService>(),
                 new TestOptionsSnapshot<GlobalSettings>(new GlobalSettings()),
+                new TestOptionsSnapshot<SecuritySettings>(new SecuritySettings()),
                 AppCaches.Disabled,
                 Mock.Of<ITwoFactorLoginService>())
         };
@@ -138,11 +142,11 @@ public class MemberManagerTests
 
         // assert
         Assert.IsTrue(identityResult.Succeeded);
-        Assert.IsTrue(!identityResult.Errors.Any());
+        Assert.IsFalse(identityResult.Errors.Any());
     }
 
     [Test]
-    public async Task GivenAUserExists_AndTheCorrectCredentialsAreProvided_ThenACheckOfCredentialsShouldSucceed()
+    public async Task GivenAApprovedUserExists_AndTheCorrectCredentialsAreProvided_ThenACheckOfCredentialsShouldSucceed()
     {
         // arrange
         var password = "password";
@@ -166,6 +170,34 @@ public class MemberManagerTests
 
         // assert
         Assert.IsTrue(result);
+    }
+
+    [Test]
+    public async Task GivenAnUnapprovedUserExists_AndTheCorrectCredentialsAreProvided_ThenACheckOfCredentialsShouldFail()
+    {
+        // arrange
+        var password = "password";
+        var sut = CreateSut();
+
+        var fakeUser = CreateValidUser();
+        fakeUser.IsApproved = false;
+
+        var fakeMember = CreateMember(fakeUser);
+
+        MockMemberServiceForCreateMember(fakeMember);
+
+        _mockMemberService.Setup(x => x.GetByUsername(It.Is<string>(y => y == fakeUser.UserName))).Returns(fakeMember);
+
+        _mockPasswordHasher
+            .Setup(x => x.VerifyHashedPassword(It.IsAny<MemberIdentityUser>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Returns(PasswordVerificationResult.Success);
+
+        // act
+        await sut.CreateAsync(fakeUser);
+        var result = await sut.ValidateCredentialsAsync(fakeUser.UserName, password);
+
+        // assert
+        Assert.IsFalse(result);
     }
 
     [Test]
@@ -220,6 +252,7 @@ public class MemberManagerTests
             MemberTypeAlias = "Anything",
             PasswordConfig = "testConfig",
             PasswordHash = "hashedPassword",
+            IsApproved = true
         };
 
     private static IMember CreateMember(MemberIdentityUser fakeUser)
@@ -234,6 +267,9 @@ public class MemberManagerTests
         _mockMemberService
             .Setup(x => x.CreateMember(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .Returns(fakeMember);
-        _mockMemberService.Setup(x => x.Save(fakeMember));
+        _mockMemberService
+            .Setup(x => x.Save(fakeMember, Constants.Security.SuperUserId))
+            .Returns(Attempt.Succeed<OperationResult?>(null));
+
     }
 }

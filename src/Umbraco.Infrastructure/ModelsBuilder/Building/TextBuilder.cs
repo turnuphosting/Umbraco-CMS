@@ -35,6 +35,7 @@ public class TextBuilder : Builder
     ///     Initializes a new instance of the <see cref="TextBuilder" /> class with a list of models to generate
     ///     and the result of code parsing.
     /// </summary>
+    /// <param name="config">The models builder configuration.</param>
     /// <param name="typeModels">The list of models to generate.</param>
     public TextBuilder(ModelsBuilderSettings config, IList<TypeModel> typeModels)
         : base(config, typeModels)
@@ -277,7 +278,7 @@ public class TextBuilder : Builder
         sb.AppendFormat(
             "\t\tpublic new const string ModelTypeAlias = \"{0}\";\n",
             type.Alias);
-        TypeModel.ItemTypes itemType = type.IsElement ? TypeModel.ItemTypes.Content : type.ItemType; // fixme
+        TypeModel.ItemTypes itemType = type.IsElement ? TypeModel.ItemTypes.Content : type.ItemType; // TODO
         WriteGeneratedCodeAttribute(sb, "\t\t");
         sb.AppendFormat(
             "\t\tpublic new const PublishedItemType ModelItemType = PublishedItemType.{0};\n",
@@ -584,7 +585,7 @@ public class TextBuilder : Builder
             WriteNonGenericClrType(sb, type[..p]);
             sb.Append("<");
             var args = type[(p + 1)..].TrimEnd(Constants.CharArrays.GreaterThan)
-                .Split(Constants.CharArrays.Comma); // fixme will NOT work with nested generic types
+                .Split(Constants.CharArrays.Comma); // TODO: will NOT work with nested generic types
             for (var i = 0; i < args.Length; i++)
             {
                 if (i > 0)

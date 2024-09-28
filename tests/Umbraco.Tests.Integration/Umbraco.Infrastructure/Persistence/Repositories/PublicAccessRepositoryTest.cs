@@ -10,6 +10,7 @@ using Umbraco.Cms.Core.Persistence.Repositories;
 using Umbraco.Cms.Infrastructure.Persistence;
 using Umbraco.Cms.Infrastructure.Persistence.Repositories.Implement;
 using Umbraco.Cms.Infrastructure.Scoping;
+using Umbraco.Cms.Tests.Common.Attributes;
 using Umbraco.Cms.Tests.Common.Builders;
 using Umbraco.Cms.Tests.Common.Testing;
 using Umbraco.Cms.Tests.Integration.Testing;
@@ -79,6 +80,7 @@ public class PublicAccessRepositoryTest : UmbracoIntegrationTest
     }
 
     [Test]
+    [LongRunning]
     public void Can_Add2()
     {
         var content = CreateTestData(3).ToArray();
@@ -190,7 +192,7 @@ public class PublicAccessRepositoryTest : UmbracoIntegrationTest
 
             // now remove a few rules from a few of the items and then add some more, this will put things 'out of order' which
             // we need to verify our sort order is working for the relator
-            // FIXME: no "relator" in v8?!
+            // TODO: no "relator" in v8?!
             for (var i = 0; i < allEntries.Count; i++)
             {
                 // all the even ones

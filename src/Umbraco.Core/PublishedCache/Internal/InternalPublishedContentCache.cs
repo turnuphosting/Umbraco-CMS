@@ -1,7 +1,5 @@
 using System.ComponentModel;
-using System.Xml.XPath;
 using Umbraco.Cms.Core.Models.PublishedContent;
-using Umbraco.Cms.Core.Xml;
 
 namespace Umbraco.Cms.Core.PublishedCache.Internal;
 
@@ -15,6 +13,12 @@ public sealed class InternalPublishedContentCache : PublishedCacheBase, IPublish
         : base(false)
     {
     }
+
+    public Task<IPublishedContent?> GetByIdAsync(int id, bool preview = false) => throw new NotImplementedException();
+
+    public Task<IPublishedContent?> GetByIdAsync(Guid key, bool preview = false) => throw new NotImplementedException();
+
+    public Task<bool> HasByIdAsync(int id, bool preview = false) => throw new NotImplementedException();
 
     public IPublishedContent GetByRoute(bool preview, string route, bool? hideTopLevelNode = null, string? culture = null) => throw new NotImplementedException();
 
@@ -38,28 +42,6 @@ public sealed class InternalPublishedContentCache : PublishedCacheBase, IPublish
     public override IEnumerable<IPublishedContent> GetAtRoot(bool preview, string? culture = null) =>
         _content.Values.Where(x => x.Parent == null);
 
-    [Obsolete("The current implementation of this method is suboptimal and will be removed entirely in a future version. Scheduled for removal in v14")]
-    public override IPublishedContent GetSingleByXPath(bool preview, string xpath, XPathVariable[] vars) =>
-        throw new NotImplementedException();
-
-    [Obsolete("The current implementation of this method is suboptimal and will be removed entirely in a future version. Scheduled for removal in v14")]
-    public override IPublishedContent GetSingleByXPath(bool preview, XPathExpression xpath, XPathVariable[] vars) =>
-        throw new NotImplementedException();
-
-    [Obsolete("The current implementation of this method is suboptimal and will be removed entirely in a future version. Scheduled for removal in v14")]
-    public override IEnumerable<IPublishedContent> GetByXPath(bool preview, string xpath, XPathVariable[] vars) =>
-        throw new NotImplementedException();
-
-    [Obsolete("The current implementation of this method is suboptimal and will be removed entirely in a future version. Scheduled for removal in v14")]
-    public override IEnumerable<IPublishedContent>
-        GetByXPath(bool preview, XPathExpression xpath, XPathVariable[] vars) => throw new NotImplementedException();
-
-    [Obsolete("The current implementation of this method is suboptimal and will be removed entirely in a future version. Scheduled for removal in v14")]
-    public override XPathNavigator CreateNavigator(bool preview) => throw new NotImplementedException();
-
-    [Obsolete("The current implementation of this method is suboptimal and will be removed entirely in a future version. Scheduled for removal in v14")]
-    public override XPathNavigator CreateNodeNavigator(int id, bool preview) => throw new NotImplementedException();
-
     public override bool HasContent(bool preview) => _content.Count > 0;
 
     public override IPublishedContentType GetContentType(int id) => throw new NotImplementedException();
@@ -73,4 +55,9 @@ public sealed class InternalPublishedContentCache : PublishedCacheBase, IPublish
 
     // public void Add(InternalPublishedContent content) => _content[content.Id] = content.CreateModel(Mock.Of<IPublishedModelFactory>());
     public void Clear() => _content.Clear();
+    public Task<IPublishedContent?> GetByIdAsync(int id) => throw new NotImplementedException();
+
+    public Task<IPublishedContent?> GetByKeyAsync(Guid key) => throw new NotImplementedException();
+
+    public Task<bool> HasByIdAsync(int id) => throw new NotImplementedException();
 }

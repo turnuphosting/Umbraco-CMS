@@ -4,18 +4,18 @@
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
+using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Configuration.Models;
-using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Sync;
 using Umbraco.Cms.Infrastructure.Persistence;
 using Umbraco.Cms.Infrastructure.Persistence.Dtos;
+using Umbraco.Cms.Tests.Common.Attributes;
 using Umbraco.Cms.Tests.Common.Builders;
 using Umbraco.Cms.Tests.Common.Testing;
 using Umbraco.Cms.Tests.Integration.Testing;
 using Umbraco.Cms.Tests.Integration.Umbraco.Infrastructure.Scoping;
-using Umbraco.Extensions;
 
 namespace Umbraco.Cms.Tests.Integration.Umbraco.Infrastructure.Services;
 
@@ -31,7 +31,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
 
     private IRedirectUrlService RedirectUrlService => GetRequiredService<IRedirectUrlService>();
 
-    private ILocalizationService LocalizationService => GetRequiredService<ILocalizationService>();
+    private ILanguageService LanguageService => GetRequiredService<ILanguageService>();
 
 
     protected override void CustomTestSetup(IUmbracoBuilder builder)
@@ -48,7 +48,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
     {
         var json = GetJson(id).Replace('"', '\'');
         var pos = json.IndexOf("'cd':", StringComparison.InvariantCultureIgnoreCase);
-        json = json.Substring(0, pos + "'cd':".Length);
+        json = json[..(pos + "'cd':".Length)];
         Assert.AreEqual(expected, json);
     }
 
@@ -81,8 +81,11 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
     [TestCase(ContentVariation.CultureAndSegment, ContentVariation.Culture, true)]
     [TestCase(ContentVariation.CultureAndSegment, ContentVariation.Segment, true)]
     [TestCase(ContentVariation.CultureAndSegment, ContentVariation.CultureAndSegment, false)]
-    public void Change_Content_Type_Variation_Clears_Redirects(ContentVariation startingContentTypeVariation,
-        ContentVariation changedContentTypeVariation, bool shouldUrlRedirectsBeCleared)
+    [LongRunning]
+    public void Change_Content_Type_Variation_Clears_Redirects(
+        ContentVariation startingContentTypeVariation,
+        ContentVariation changedContentTypeVariation,
+        bool shouldUrlRedirectsBeCleared)
     {
         var contentType = ContentTypeBuilder.CreateBasicContentType();
         contentType.Variations = startingContentTypeVariation;
@@ -249,7 +252,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
     [TestCase(ContentVariation.CultureAndSegment, ContentVariation.Culture)]
     [TestCase(ContentVariation.CultureAndSegment, ContentVariation.Segment)]
     [TestCase(ContentVariation.CultureAndSegment, ContentVariation.CultureAndSegment)]
-    public void Preserve_Content_Name_After_Content_Type_Variation_Change(ContentVariation contentTypeVariationFrom,
+    public async Task Preserve_Content_Name_After_Content_Type_Variation_Change(ContentVariation contentTypeVariationFrom,
         ContentVariation contentTypeVariationTo)
     {
         var contentType = ContentTypeBuilder.CreateBasicContentType();
@@ -264,7 +267,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         var nlContentName = "Content nl-NL";
         var nlCulture = "nl-NL";
 
-        LocalizationService.Save(new Language(nlCulture, "Dutch (Netherlands)"));
+        await LanguageService.CreateAsync(new Language(nlCulture, "Dutch (Netherlands)"), Constants.Security.SuperUserKey);
 
         var includeCultureNames = contentType.Variations.HasFlag(ContentVariation.Culture);
 
@@ -533,11 +536,11 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
     }
 
     [Test]
-    public void Change_Variations_SimpleContentType_VariantToInvariantAndBack()
+    public async Task Change_Variations_SimpleContentType_VariantToInvariantAndBack()
     {
         // one simple content type, variant, with both variant and invariant properties
         // can change it to invariant and back
-        CreateFrenchAndEnglishLangs();
+        await CreateFrenchAndEnglishLangs();
 
         var contentType = CreateContentType(ContentVariation.Culture);
 
@@ -567,7 +570,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value1':[{'c':'en','v':'v1en'},{'c':'fr','v':'v1fr'}],'value2':[{'v':'v2'}]},'cd':");
+            "{'pd':{'value1':[{'c':'en','s':'','v':'v1en'},{'c':'fr','s':'','v':'v1fr'}],'value2':[{'c':'','s':'','v':'v2'}]},'cd':");
 
         // switch content type to Nothing
         contentType.Variations = ContentVariation.Nothing;
@@ -585,7 +588,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value1':[{'v':'v1en'}],'value2':[{'v':'v2'}]},'cd':");
+            "{'pd':{'value1':[{'c':'','s':'','v':'v1en'}],'value2':[{'c':'','s':'','v':'v2'}]},'cd':");
 
         // switch content back to Culture
         contentType.Variations = ContentVariation.Culture;
@@ -603,7 +606,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value1':[{'v':'v1en'}],'value2':[{'v':'v2'}]},'cd':");
+            "{'pd':{'value1':[{'c':'','s':'','v':'v1en'}],'value2':[{'c':'','s':'','v':'v2'}]},'cd':");
 
         // switch property back to Culture
         contentType.PropertyTypes.First(x => x.Alias == "value1").Variations = ContentVariation.Culture;
@@ -620,11 +623,11 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value1':[{'c':'en','v':'v1en'},{'c':'fr','v':'v1fr'}],'value2':[{'v':'v2'}]},'cd':");
+            "{'pd':{'value1':[{'c':'en','s':'','v':'v1en'},{'c':'fr','s':'','v':'v1fr'}],'value2':[{'c':'','s':'','v':'v2'}]},'cd':");
     }
 
     [Test]
-    public void Change_Variations_SimpleContentType_InvariantToVariantAndBack()
+    public async Task Change_Variations_SimpleContentType_InvariantToVariantAndBack()
     {
         // one simple content type, invariant
         // can change it to variant and back
@@ -632,9 +635,9 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         var globalSettings = new GlobalSettings();
 
         var languageEn = new Language("en", "English") { IsDefault = true };
-        LocalizationService.Save(languageEn);
+        await LanguageService.CreateAsync(languageEn, Constants.Security.SuperUserKey);
         var languageFr = new Language("fr", "French");
-        LocalizationService.Save(languageFr);
+        await LanguageService.CreateAsync(languageFr, Constants.Security.SuperUserKey);
 
         var contentType = CreateContentType(ContentVariation.Nothing);
 
@@ -663,7 +666,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value1':[{'v':'v1'}],'value2':[{'v':'v2'}]},'cd':");
+            "{'pd':{'value1':[{'c':'','s':'','v':'v1'}],'value2':[{'c':'','s':'','v':'v2'}]},'cd':");
 
         // switch content type to Culture
         contentType.Variations = ContentVariation.Culture;
@@ -680,7 +683,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value1':[{'v':'v1'}],'value2':[{'v':'v2'}]},'cd':");
+            "{'pd':{'value1':[{'c':'','s':'','v':'v1'}],'value2':[{'c':'','s':'','v':'v2'}]},'cd':");
 
         // switch property to Culture
         contentType.PropertyTypes.First(x => x.Alias == "value1").Variations = ContentVariation.Culture;
@@ -696,7 +699,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value1':[{'c':'en','v':'v1'}],'value2':[{'v':'v2'}]},'cd':");
+            "{'pd':{'value1':[{'c':'en','s':'','v':'v1'}],'value2':[{'c':'','s':'','v':'v2'}]},'cd':");
 
         // switch content back to Nothing
         contentType.Variations = ContentVariation.Nothing;
@@ -714,15 +717,15 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value1':[{'v':'v1'}],'value2':[{'v':'v2'}]},'cd':");
+            "{'pd':{'value1':[{'c':'','s':'','v':'v1'}],'value2':[{'c':'','s':'','v':'v2'}]},'cd':");
     }
 
     [Test]
-    public void Change_Variations_SimpleContentType_VariantPropertyToInvariantAndBack()
+    public async Task Change_Variations_SimpleContentType_VariantPropertyToInvariantAndBack()
     {
         // one simple content type, variant, with both variant and invariant properties
         // can change an invariant property to variant and back
-        CreateFrenchAndEnglishLangs();
+        await CreateFrenchAndEnglishLangs();
 
         var contentType = CreateContentType(ContentVariation.Culture);
 
@@ -752,7 +755,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value1':[{'c':'en','v':'v1en'},{'c':'fr','v':'v1fr'}],'value2':[{'v':'v2'}]},'cd':");
+            "{'pd':{'value1':[{'c':'en','s':'','v':'v1en'},{'c':'fr','s':'','v':'v1fr'}],'value2':[{'c':'','s':'','v':'v2'}]},'cd':");
 
         // switch property type to Nothing
         contentType.PropertyTypes.First(x => x.Alias == "value1").Variations = ContentVariation.Nothing;
@@ -770,7 +773,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value1':[{'v':'v1en'}],'value2':[{'v':'v2'}]},'cd':");
+            "{'pd':{'value1':[{'c':'','s':'','v':'v1en'}],'value2':[{'c':'','s':'','v':'v2'}]},'cd':");
 
         // switch property back to Culture
         contentType.PropertyTypes.First(x => x.Alias == "value1").Variations = ContentVariation.Culture;
@@ -787,7 +790,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value1':[{'c':'en','v':'v1en'},{'c':'fr','v':'v1fr'}],'value2':[{'v':'v2'}]},'cd':");
+            "{'pd':{'value1':[{'c':'en','s':'','v':'v1en'},{'c':'fr','s':'','v':'v1fr'}],'value2':[{'c':'','s':'','v':'v2'}]},'cd':");
 
         // switch other property to Culture
         contentType.PropertyTypes.First(x => x.Alias == "value2").Variations = ContentVariation.Culture;
@@ -806,19 +809,19 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value1':[{'c':'en','v':'v1en'},{'c':'fr','v':'v1fr'}],'value2':[{'c':'en','v':'v2'}]},'cd':");
+            "{'pd':{'value1':[{'c':'en','s':'','v':'v1en'},{'c':'fr','s':'','v':'v1fr'}],'value2':[{'c':'en','s':'','v':'v2'}]},'cd':");
     }
 
     [TestCase(ContentVariation.Culture, ContentVariation.Nothing)]
     [TestCase(ContentVariation.Culture, ContentVariation.Segment)]
     [TestCase(ContentVariation.CultureAndSegment, ContentVariation.Nothing)]
     [TestCase(ContentVariation.CultureAndSegment, ContentVariation.Segment)]
-    public void Change_Property_Variations_From_Variant_To_Invariant_And_Ensure_Edited_Values_Are_Renormalized(
+    public async Task Change_Property_Variations_From_Variant_To_Invariant_And_Ensure_Edited_Values_Are_Renormalized(
         ContentVariation variant, ContentVariation invariant)
     {
         // one simple content type, variant, with both variant and invariant properties
         // can change an invariant property to variant and back
-        CreateFrenchAndEnglishLangs();
+        await CreateFrenchAndEnglishLangs();
 
         var contentType = CreateContentType(ContentVariation.Culture | ContentVariation.Segment);
 
@@ -832,7 +835,8 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         document.SetCultureName("doc1fr", "fr");
         document.SetValue("value1", "v1en-init", "en");
         document.SetValue("value1", "v1fr-init", "fr");
-        ContentService.SaveAndPublish(document); // all values are published which means the document is not 'edited'
+        ContentService.Save(document);
+        ContentService.Publish(document, document.AvailableCultures.ToArray()); // all values are published which means the document is not 'edited'
 
         document = ContentService.GetById(document.Id);
         Assert.IsFalse(document.IsCultureEdited("en"));
@@ -876,7 +880,8 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
 
         // update the invariant value and publish
         document.SetValue("value1", "v1inv");
-        ContentService.SaveAndPublish(document);
+        ContentService.Save(document);
+        ContentService.Publish(document, document.AvailableCultures.ToArray());
 
         document = ContentService.GetById(document.Id);
         Assert.AreEqual("doc1en", document.Name);
@@ -917,7 +922,8 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         // publish again
         document.SetValue("value1", "v1en2", "en"); // update the value now that it's variant again
         document.SetValue("value1", "v1fr2", "fr"); // update the value now that it's variant again
-        ContentService.SaveAndPublish(document);
+        ContentService.Save(document);
+        ContentService.Publish(document, document.AvailableCultures.ToArray());
 
         document = ContentService.GetById(document.Id);
         Assert.AreEqual("doc1en", document.Name);
@@ -937,12 +943,12 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
     [TestCase(ContentVariation.Nothing, ContentVariation.CultureAndSegment)]
     [TestCase(ContentVariation.Segment, ContentVariation.Culture)]
     [TestCase(ContentVariation.Segment, ContentVariation.CultureAndSegment)]
-    public void Change_Property_Variations_From_Invariant_To_Variant_And_Ensure_Edited_Values_Are_Renormalized(
+    public async Task Change_Property_Variations_From_Invariant_To_Variant_And_Ensure_Edited_Values_Are_Renormalized(
         ContentVariation invariant, ContentVariation variant)
     {
         // one simple content type, variant, with both variant and invariant properties
         // can change an invariant property to variant and back
-        CreateFrenchAndEnglishLangs();
+        await CreateFrenchAndEnglishLangs();
 
         var contentType = CreateContentType(ContentVariation.Culture | ContentVariation.Segment);
 
@@ -955,7 +961,8 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         document.SetCultureName("doc1en", "en");
         document.SetCultureName("doc1fr", "fr");
         document.SetValue("value1", "v1en-init");
-        ContentService.SaveAndPublish(document); // all values are published which means the document is not 'edited'
+        ContentService.Save(document); // all values are published which means the document is not 'edited'
+        ContentService.Publish(document, document.AvailableCultures.ToArray());
 
         document = ContentService.GetById(document.Id);
         Assert.IsFalse(document.IsCultureEdited("en"));
@@ -989,7 +996,8 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
 
         // update the culture value and publish
         document.SetValue("value1", "v1en2", "en");
-        ContentService.SaveAndPublish(document);
+        ContentService.Save(document);
+        ContentService.Publish(document, document.AvailableCultures.ToArray());
 
         document = ContentService.GetById(document.Id);
         Assert.AreEqual("doc1en", document.Name);
@@ -1022,13 +1030,13 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
     }
 
     [Test]
-    public void Change_Variations_ComposedContentType_1()
+    public async Task Change_Variations_ComposedContentType_1()
     {
         // one composing content type, variant, with both variant and invariant properties
         // one composed content type, variant, with both variant and invariant properties
         // can change the composing content type to invariant and back
         // can change the composed content type to invariant and back
-        CreateFrenchAndEnglishLangs();
+        await CreateFrenchAndEnglishLangs();
 
         var composing = CreateContentType(ContentVariation.Culture, "composing");
 
@@ -1064,7 +1072,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value11':[{'c':'en','v':'v11en'},{'c':'fr','v':'v11fr'}],'value12':[{'v':'v12'}],'value21':[{'c':'en','v':'v21en'},{'c':'fr','v':'v21fr'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'en','s':'','v':'v11en'},{'c':'fr','s':'','v':'v11fr'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'en','s':'','v':'v21en'},{'c':'fr','s':'','v':'v21fr'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         composed.Variations = ContentVariation.Nothing;
         ContentTypeService.Save(composed);
@@ -1073,7 +1081,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value11':[{'v':'v11en'}],'value12':[{'v':'v12'}],'value21':[{'v':'v21en'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11en'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'','s':'','v':'v21en'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         composed.Variations = ContentVariation.Culture;
         ContentTypeService.Save(composed);
@@ -1082,7 +1090,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value11':[{'c':'en','v':'v11en'},{'c':'fr','v':'v11fr'}],'value12':[{'v':'v12'}],'value21':[{'v':'v21en'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'en','s':'','v':'v11en'},{'c':'fr','s':'','v':'v11fr'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'','s':'','v':'v21en'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         composed.PropertyTypes.First(x => x.Alias == "value21").Variations = ContentVariation.Culture;
         ContentTypeService.Save(composed);
@@ -1091,7 +1099,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value11':[{'c':'en','v':'v11en'},{'c':'fr','v':'v11fr'}],'value12':[{'v':'v12'}],'value21':[{'c':'en','v':'v21en'},{'c':'fr','v':'v21fr'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'en','s':'','v':'v11en'},{'c':'fr','s':'','v':'v11fr'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'en','s':'','v':'v21en'},{'c':'fr','s':'','v':'v21fr'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         composing.Variations = ContentVariation.Nothing;
         ContentTypeService.Save(composing);
@@ -1100,7 +1108,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value11':[{'v':'v11en'}],'value12':[{'v':'v12'}],'value21':[{'c':'en','v':'v21en'},{'c':'fr','v':'v21fr'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11en'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'en','s':'','v':'v21en'},{'c':'fr','s':'','v':'v21fr'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         composing.Variations = ContentVariation.Culture;
         ContentTypeService.Save(composing);
@@ -1109,7 +1117,7 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value11':[{'v':'v11en'}],'value12':[{'v':'v12'}],'value21':[{'c':'en','v':'v21en'},{'c':'fr','v':'v21fr'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11en'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'en','s':'','v':'v21en'},{'c':'fr','s':'','v':'v21fr'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         composing.PropertyTypes.First(x => x.Alias == "value11").Variations = ContentVariation.Culture;
         ContentTypeService.Save(composing);
@@ -1118,18 +1126,18 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document.Id));
         AssertJsonStartsWith(
             document.Id,
-            "{'pd':{'value11':[{'c':'en','v':'v11en'},{'c':'fr','v':'v11fr'}],'value12':[{'v':'v12'}],'value21':[{'c':'en','v':'v21en'},{'c':'fr','v':'v21fr'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'en','s':'','v':'v11en'},{'c':'fr','s':'','v':'v11fr'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'en','s':'','v':'v21en'},{'c':'fr','s':'','v':'v21fr'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
     }
 
     [Test]
-    public void Change_Variations_ComposedContentType_2()
+    public async Task Change_Variations_ComposedContentType_2()
     {
         // one composing content type, variant, with both variant and invariant properties
         // one composed content type, variant, with both variant and invariant properties
         // one composed content type, invariant
         // can change the composing content type to invariant and back
         // can change the variant composed content type to invariant and back
-        CreateFrenchAndEnglishLangs();
+        await CreateFrenchAndEnglishLangs();
 
         var composing = CreateContentType(ContentVariation.Culture, "composing");
 
@@ -1183,12 +1191,12 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document1.Id));
         AssertJsonStartsWith(
             document1.Id,
-            "{'pd':{'value11':[{'c':'en','v':'v11en'},{'c':'fr','v':'v11fr'}],'value12':[{'v':'v12'}],'value21':[{'c':'en','v':'v21en'},{'c':'fr','v':'v21fr'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'en','s':'','v':'v11en'},{'c':'fr','s':'','v':'v11fr'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'en','s':'','v':'v21en'},{'c':'fr','s':'','v':'v21fr'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         Console.WriteLine(GetJson(document2.Id));
         AssertJsonStartsWith(
             document2.Id,
-            "{'pd':{'value11':[{'v':'v11'}],'value12':[{'v':'v12'}],'value31':[{'v':'v31'}],'value32':[{'v':'v32'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11'}],'value12':[{'c':'','s':'','v':'v12'}],'value31':[{'c':'','s':'','v':'v31'}],'value32':[{'c':'','s':'','v':'v32'}]},'cd':");
 
         composed1.Variations = ContentVariation.Nothing;
         ContentTypeService.Save(composed1);
@@ -1197,12 +1205,12 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document1.Id));
         AssertJsonStartsWith(
             document1.Id,
-            "{'pd':{'value11':[{'v':'v11en'}],'value12':[{'v':'v12'}],'value21':[{'v':'v21en'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11en'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'','s':'','v':'v21en'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         Console.WriteLine(GetJson(document2.Id));
         AssertJsonStartsWith(
             document2.Id,
-            "{'pd':{'value11':[{'v':'v11'}],'value12':[{'v':'v12'}],'value31':[{'v':'v31'}],'value32':[{'v':'v32'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11'}],'value12':[{'c':'','s':'','v':'v12'}],'value31':[{'c':'','s':'','v':'v31'}],'value32':[{'c':'','s':'','v':'v32'}]},'cd':");
 
         composed1.Variations = ContentVariation.Culture;
         ContentTypeService.Save(composed1);
@@ -1211,12 +1219,12 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document1.Id));
         AssertJsonStartsWith(
             document1.Id,
-            "{'pd':{'value11':[{'c':'en','v':'v11en'},{'c':'fr','v':'v11fr'}],'value12':[{'v':'v12'}],'value21':[{'v':'v21en'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'en','s':'','v':'v11en'},{'c':'fr','s':'','v':'v11fr'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'','s':'','v':'v21en'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         Console.WriteLine(GetJson(document2.Id));
         AssertJsonStartsWith(
             document2.Id,
-            "{'pd':{'value11':[{'v':'v11'}],'value12':[{'v':'v12'}],'value31':[{'v':'v31'}],'value32':[{'v':'v32'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11'}],'value12':[{'c':'','s':'','v':'v12'}],'value31':[{'c':'','s':'','v':'v31'}],'value32':[{'c':'','s':'','v':'v32'}]},'cd':");
 
         composed1.PropertyTypes.First(x => x.Alias == "value21").Variations = ContentVariation.Culture;
         ContentTypeService.Save(composed1);
@@ -1225,12 +1233,12 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document1.Id));
         AssertJsonStartsWith(
             document1.Id,
-            "{'pd':{'value11':[{'c':'en','v':'v11en'},{'c':'fr','v':'v11fr'}],'value12':[{'v':'v12'}],'value21':[{'c':'en','v':'v21en'},{'c':'fr','v':'v21fr'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'en','s':'','v':'v11en'},{'c':'fr','s':'','v':'v11fr'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'en','s':'','v':'v21en'},{'c':'fr','s':'','v':'v21fr'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         Console.WriteLine(GetJson(document2.Id));
         AssertJsonStartsWith(
             document2.Id,
-            "{'pd':{'value11':[{'v':'v11'}],'value12':[{'v':'v12'}],'value31':[{'v':'v31'}],'value32':[{'v':'v32'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11'}],'value12':[{'c':'','s':'','v':'v12'}],'value31':[{'c':'','s':'','v':'v31'}],'value32':[{'c':'','s':'','v':'v32'}]},'cd':");
 
         composing.Variations = ContentVariation.Nothing;
         ContentTypeService.Save(composing);
@@ -1239,12 +1247,12 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document1.Id));
         AssertJsonStartsWith(
             document1.Id,
-            "{'pd':{'value11':[{'v':'v11en'}],'value12':[{'v':'v12'}],'value21':[{'c':'en','v':'v21en'},{'c':'fr','v':'v21fr'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11en'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'en','s':'','v':'v21en'},{'c':'fr','s':'','v':'v21fr'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         Console.WriteLine(GetJson(document2.Id));
         AssertJsonStartsWith(
             document2.Id,
-            "{'pd':{'value11':[{'v':'v11'}],'value12':[{'v':'v12'}],'value31':[{'v':'v31'}],'value32':[{'v':'v32'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11'}],'value12':[{'c':'','s':'','v':'v12'}],'value31':[{'c':'','s':'','v':'v31'}],'value32':[{'c':'','s':'','v':'v32'}]},'cd':");
 
         composing.Variations = ContentVariation.Culture;
         ContentTypeService.Save(composing);
@@ -1253,12 +1261,12 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document1.Id));
         AssertJsonStartsWith(
             document1.Id,
-            "{'pd':{'value11':[{'v':'v11en'}],'value12':[{'v':'v12'}],'value21':[{'c':'en','v':'v21en'},{'c':'fr','v':'v21fr'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11en'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'en','s':'','v':'v21en'},{'c':'fr','s':'','v':'v21fr'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         Console.WriteLine(GetJson(document2.Id));
         AssertJsonStartsWith(
             document2.Id,
-            "{'pd':{'value11':[{'v':'v11'}],'value12':[{'v':'v12'}],'value31':[{'v':'v31'}],'value32':[{'v':'v32'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11'}],'value12':[{'c':'','s':'','v':'v12'}],'value31':[{'c':'','s':'','v':'v31'}],'value32':[{'c':'','s':'','v':'v32'}]},'cd':");
 
         composing.PropertyTypes.First(x => x.Alias == "value11").Variations = ContentVariation.Culture;
         ContentTypeService.Save(composing);
@@ -1267,20 +1275,20 @@ public class ContentTypeServiceVariantsTests : UmbracoIntegrationTest
         Console.WriteLine(GetJson(document1.Id));
         AssertJsonStartsWith(
             document1.Id,
-            "{'pd':{'value11':[{'c':'en','v':'v11en'},{'c':'fr','v':'v11fr'}],'value12':[{'v':'v12'}],'value21':[{'c':'en','v':'v21en'},{'c':'fr','v':'v21fr'}],'value22':[{'v':'v22'}]},'cd':");
+            "{'pd':{'value11':[{'c':'en','s':'','v':'v11en'},{'c':'fr','s':'','v':'v11fr'}],'value12':[{'c':'','s':'','v':'v12'}],'value21':[{'c':'en','s':'','v':'v21en'},{'c':'fr','s':'','v':'v21fr'}],'value22':[{'c':'','s':'','v':'v22'}]},'cd':");
 
         Console.WriteLine(GetJson(document2.Id));
         AssertJsonStartsWith(
             document2.Id,
-            "{'pd':{'value11':[{'v':'v11'}],'value12':[{'v':'v12'}],'value31':[{'v':'v31'}],'value32':[{'v':'v32'}]},'cd':");
+            "{'pd':{'value11':[{'c':'','s':'','v':'v11'}],'value12':[{'c':'','s':'','v':'v12'}],'value31':[{'c':'','s':'','v':'v31'}],'value32':[{'c':'','s':'','v':'v32'}]},'cd':");
     }
 
-    private void CreateFrenchAndEnglishLangs()
+    private async Task CreateFrenchAndEnglishLangs()
     {
         var languageEn = new Language("en", "English") { IsDefault = true };
-        LocalizationService.Save(languageEn);
+        await LanguageService.CreateAsync(languageEn, Constants.Security.SuperUserKey);
         var languageFr = new Language("fr", "French");
-        LocalizationService.Save(languageFr);
+        await LanguageService.CreateAsync(languageFr, Constants.Security.SuperUserKey);
     }
 
     private IContentType CreateContentType(ContentVariation variance, string alias = "contentType") =>
